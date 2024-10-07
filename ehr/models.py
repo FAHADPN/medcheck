@@ -5,4 +5,4 @@ from django.db import models
 class Patient(models.Model):
     name = models.CharField(max_length=200)
     age = models.IntegerField()
-    phone = models.CharField(max_length=25)
+    phone = models.CharField(max_length=25, blank=True)
