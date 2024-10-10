@@ -122,6 +122,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Session settings (optional, depending on use case)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store session in DB
+SESSION_COOKIE_AGE = 3600  # 1 hour session expiration
+SESSION_SAVE_EVERY_REQUEST = True  # Update session on every request
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
