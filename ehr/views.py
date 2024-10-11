@@ -417,25 +417,25 @@ def gather_symptoms(request: HttpRequest) -> HttpResponse:
 @csrf_exempt
 def handle_symptoms(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
-    question_number = int(request.GET.get('question_number', '0'))
-    answer = request.POST.get('SpeechResult', '')
+    # question_number = int(request.GET.get('question_number', '0'))
+    # answer = request.POST.get('SpeechResult', '')
 
-    conversation_history = get_call_data(call_id).get('conversation_history', [])
-    conversation_history.append(f"Q{question_number}: {answer}")
-    save_step_data(call_id, 'conversation_history', conversation_history)
+    # conversation_history = get_call_data(call_id).get('conversation_history', [])
+    # conversation_history.append(f"Q{question_number}: {answer}")
+    # save_step_data(call_id, 'conversation_history', conversation_history)
 
     vr = VoiceResponse()
 
-    if question_number >= 9:
-        # Update the CallLog with symptoms
-        call_log = CallLog.objects.get(call_sid=call_id)
-        call_log.symptoms = "\n".join(conversation_history)
-        call_log.save()
+    # if question_number >= 9:
+    #     # Update the CallLog with symptoms
+    #     call_log = CallLog.objects.get(call_sid=call_id)
+    #     call_log.symptoms = "\n".join(conversation_history)
+    #     call_log.save()
 
-        vr.say("Thank you for providing your symptoms. We will process this information and will Schedule the appointment with your doctor. Goodbye and take care.", voice="Polly.Aditi", language="en-IN")
-        vr.hangup()
-    else:
-        vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number + 1}')
+    vr.say("Thank you for providing your symptoms. We will process this information and will Schedule the appointment with your doctor. Goodbye and take care.", voice="Polly.Aditi", language="en-IN")
+    vr.hangup()
+    # else:
+        # vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number + 1}')
 
     return HttpResponse(str(vr), content_type='text/xml')
 
