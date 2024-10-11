@@ -24,6 +24,7 @@ urlpatterns = [
     path('gather-user-number/', views.gather_user_number, name='gather_user_number'),
     path('handle-user-number/', views.handle_user_number, name='handle_user_number'),
     path('create-patient/', views.create_patient, name='create_patient'),
+    path('doctor_department/', views.doctor_department, name='doctor_department'),
     path('schedule-appointment/', views.schedule_appointment, name='schedule_appointment'),
     path('gather-symptoms/', views.gather_symptoms, name='gather_symptoms'),
     path('handle-symptoms/', views.handle_symptoms, name='handle_symptoms'),

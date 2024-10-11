@@ -1,12 +1,12 @@
-# from django.shortcuts import render
-# from rest_framework import viewsets
-# from .models import Patient
-# from .serializers import PatientSerializer
+from django.shortcuts import render
+from rest_framework import viewsets
+from .models import Patient
+from .serializers import PatientSerializer
 # Create your views here.
 
-# class PatientViewSet(viewsets.ModelViewSet):
-#     queryset = Patient.objects.all()
-#     serializer_class = PatientSerializer
+class PatientViewSet(viewsets.ModelViewSet):
+    queryset = Patient.objects.all()
+    serializer_class = PatientSerializer
     
 
 from django.http import HttpRequest, HttpResponse
@@ -47,7 +47,7 @@ def welcome(request: HttpRequest) -> HttpResponse:
     })
 
     vr = VoiceResponse()
-    vr.say("Hello, Thanks for calling \"Help Thou me\" your Healthcare assistant.", voice="Polly.Aditi", language="en-IN")
+    vr.say("Hello, Thanks for calling \" Medi Flow \" your Healthcare assistant.", voice="Polly.Aditi", language="en-IN")
     
     gather = Gather(
         num_digits=1,
@@ -332,6 +332,22 @@ def create_patient(request: HttpRequest) -> HttpResponse:
     )
 
     vr = VoiceResponse()
+    vr.redirect(reverse('doctor_department') + f'?call_id={call_id}')
+    return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+def doctor_department(request: HttpRequest) -> HttpResponse:
+    call_id = request.GET.get('call_id')
+    vr = VoiceResponse()
+    gather = Gather(
+        num_digits=1,
+        action=reverse('handle_doctor_department') + f'?call_id={call_id}',
+        timeout=5,
+        language="en-IN"
+    )
+    gather.say("Please say the department you want to schedule appointment for", voice="Polly.Aditi", language="en-IN")
+    vr.say("Your options are: Cardiology, Dermatology, Gastroenterology, Neurology, Oncology, Orthopedics, Pediatrics, Psychiatry, Urology", voice="Polly.Aditi", language="en-IN")
+    vr.append(gather)
     vr.redirect(reverse('schedule_appointment') + f'?call_id={call_id}')
     return HttpResponse(str(vr), content_type='text/xml')
 
@@ -339,6 +355,7 @@ def create_patient(request: HttpRequest) -> HttpResponse:
 def schedule_appointment(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
     vr = VoiceResponse()
+    vr.say("Thank you for providing the department. We will now schedule the appointment with the doctor. Please provide the date you want the appointment for.", voice="Polly.Aditi", language="en-IN")
     gather = Gather(
         num_digits=1,
         action=reverse('handle_user_number') + f'?call_id={call_id}',
@@ -368,7 +385,8 @@ def generate_next_question(conversation_history):
 @csrf_exempt
 def gather_symptoms(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
-    question_number = int(request.GET.get('question_number', '9'))
+    # question_number = int(request.GET.get('question_number', '9'))
+    question_number = 9
     conversation_history = get_call_data(call_id).get('conversation_history', [])
 
     vr = VoiceResponse()
