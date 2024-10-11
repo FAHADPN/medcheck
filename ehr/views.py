@@ -17,8 +17,12 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from django.core.cache import cache
 from django.utils import timezone
 import uuid
+import openai
+from decouple import config
 
 from .models import Patient, CallLog
+
+openai.api_key = config('OPENAI_API_KEY')
 
 def generate_call_id(request):
     call_sid = request.POST.get('CallSid')
@@ -146,6 +150,12 @@ def handle_ehr_id(request: HttpRequest) -> HttpResponse:
         'digits': ehr_id
     })
 
+    patient_data = Patient.objects.get(id=ehr_id)
+    if not patient_data:
+        vr = VoiceResponse()
+        vr.say("Sorry, we could not find a patient with the provided ID. Please try again.", voice="Polly.Aditi", language="en-IN")
+        vr.redirect(reverse('gather_user_identification') + f'?call_id={call_id}')
+        return HttpResponse(str(vr), content_type='text/xml')
     # Here you would typically validate the EHR ID and retrieve patient information
     # For this example, we'll just move to symptom collection
     vr = VoiceResponse()
@@ -325,40 +335,68 @@ def create_patient(request: HttpRequest) -> HttpResponse:
     vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}')
     return HttpResponse(str(vr), content_type='text/xml')
 
+def generate_next_question(conversation_history):
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are a medical assistant gathering information about a patient's symptoms. Ask concise, relevant questions based on the conversation history. Limit your response to just the next question."},
+            {"role": "user", "content": f"Conversation history: {conversation_history}\n\nWhat should be the next question?"}
+        ]
+    )
+    return response.choices[0].message['content']
+
 @csrf_exempt
 def gather_symptoms(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
+    question_number = int(request.GET.get('question_number', '0'))
+    conversation_history = get_call_data(call_id).get('conversation_history', [])
+
     vr = VoiceResponse()
+
+    if question_number == 0:
+        question = "Please describe your main symptom or concern."
+    elif question_number >= 10:
+        vr.redirect(reverse('handle_symptoms') + f'?call_id={call_id}')
+        return HttpResponse(str(vr), content_type='text/xml')
+    else:
+        question = generate_next_question(conversation_history)
+
     gather = Gather(
         input='speech',
-        action=reverse('handle_symptoms') + f'?call_id={call_id}',
-        timeout=60,
+        action=reverse('handle_symptoms') + f'?call_id={call_id}&question_number={question_number}',
+        timeout=10,
         language="en-IN"
     )
-    gather.say("Please say all your symptoms and diseases. After describing all your symptoms, press #.", voice="Polly.Aditi", language="en-IN")
+    gather.say(question, voice="Polly.Aditi", language="en-IN")
     vr.append(gather)
 
-    vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}')
+    vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number}')
     return HttpResponse(str(vr), content_type='text/xml')
 
 @require_POST
 @csrf_exempt
 def handle_symptoms(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
-    symptoms = request.POST.get('SpeechResult', '')
+    question_number = int(request.GET.get('question_number', '0'))
+    answer = request.POST.get('SpeechResult', '')
 
-    save_step_data(call_id, 'symptoms', {
-        'speech_result': symptoms
-    })
-
-    # Update the CallLog with symptoms
-    call_log = CallLog.objects.get(call_sid=call_id)
-    call_log.symptoms = symptoms
-    call_log.save()
+    conversation_history = get_call_data(call_id).get('conversation_history', [])
+    conversation_history.append(f"Q{question_number}: {answer}")
+    save_step_data(call_id, 'conversation_history', conversation_history)
 
     vr = VoiceResponse()
-    vr.say("Thank you for providing your symptoms. We will process this information and get back to you with an appointment. Goodbye.", voice="Polly.Aditi", language="en-IN")
-    vr.hangup()
+
+    if question_number >= 9:
+        # Update the CallLog with symptoms
+        call_log = CallLog.objects.get(call_sid=call_id)
+        call_log.symptoms = "\n".join(conversation_history)
+        call_log.save()
+
+        vr.say("Thank you for providing your symptoms. We will process this information and get back to you with an appointment. Goodbye.", voice="Polly.Aditi", language="en-IN")
+        vr.hangup()
+    else:
+        vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number + 1}')
+
     return HttpResponse(str(vr), content_type='text/xml')
 
 @csrf_exempt
