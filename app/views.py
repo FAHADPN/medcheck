@@ -132,6 +132,8 @@ def get_patient_id(request):
 
     return str(response)
 
+
+
 @api_view(['POST', 'GET'])
 def get_new_user_info(request):
     """Handles new user name collection."""

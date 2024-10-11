@@ -318,7 +318,7 @@ def create_patient(request: HttpRequest) -> HttpResponse:
     patient = Patient.objects.create(
         name=call_data.get('username', {}).get('speech_result', ''),
         age=int(call_data.get('age', {}).get('digits', 0)),
-        phone_number=call_data.get('call_start', {}).get('caller_number', '')
+        phone=call_data.get('call_start', {}).get('caller_number', '')
     )
 
     # Create a CallLog instance
@@ -332,8 +332,27 @@ def create_patient(request: HttpRequest) -> HttpResponse:
     )
 
     vr = VoiceResponse()
+    vr.redirect(reverse('schedule_appointment') + f'?call_id={call_id}')
+    return HttpResponse(str(vr), content_type='text/xml')
+
+@csrf_exempt
+def schedule_appointment(request: HttpRequest) -> HttpResponse:
+    call_id = request.GET.get('call_id')
+    vr = VoiceResponse()
+    gather = Gather(
+        num_digits=1,
+        action=reverse('handle_user_number') + f'?call_id={call_id}',
+        timeout=5,
+        language="en"
+    )
+    caller_number = request.POST.get('From', '')
+    gather.say(f"Please say the date you want appointment for", voice="Polly.Aditi", language="en-IN")
+    vr.append(gather)
+
     vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}')
     return HttpResponse(str(vr), content_type='text/xml')
+
+
 
 def generate_next_question(conversation_history):
     response = openai.ChatCompletion.create(
@@ -345,15 +364,16 @@ def generate_next_question(conversation_history):
     )
     return response.choices[0].message['content']
 
+
 @csrf_exempt
 def gather_symptoms(request: HttpRequest) -> HttpResponse:
     call_id = request.GET.get('call_id')
-    question_number = int(request.GET.get('question_number', '0'))
+    question_number = int(request.GET.get('question_number', '9'))
     conversation_history = get_call_data(call_id).get('conversation_history', [])
 
     vr = VoiceResponse()
 
-    if question_number == 0:
+    if question_number == 9:
         question = "Please describe your main symptom or concern."
     elif question_number >= 10:
         vr.redirect(reverse('handle_symptoms') + f'?call_id={call_id}')
@@ -362,11 +382,13 @@ def gather_symptoms(request: HttpRequest) -> HttpResponse:
         question = generate_next_question(conversation_history)
 
     gather = Gather(
+        finish_on_key='#',
         input='speech',
         action=reverse('handle_symptoms') + f'?call_id={call_id}&question_number={question_number}',
         timeout=10,
         language="en-IN"
     )
+    print("gather text: ", gather)
     gather.say(question, voice="Polly.Aditi", language="en-IN")
     vr.append(gather)
 
@@ -392,12 +414,14 @@ def handle_symptoms(request: HttpRequest) -> HttpResponse:
         call_log.symptoms = "\n".join(conversation_history)
         call_log.save()
 
-        vr.say("Thank you for providing your symptoms. We will process this information and get back to you with an appointment. Goodbye.", voice="Polly.Aditi", language="en-IN")
+        vr.say("Thank you for providing your symptoms. We will process this information and will Schedule the appointment with your doctor. Goodbye and take care.", voice="Polly.Aditi", language="en-IN")
         vr.hangup()
     else:
         vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number + 1}')
 
     return HttpResponse(str(vr), content_type='text/xml')
+
+
 
 @csrf_exempt
 def error_inconvinience(request: HttpRequest) -> HttpResponse:
