@@ -159,7 +159,7 @@ def handle_ehr_id(request: HttpRequest) -> HttpResponse:
     # Here you would typically validate the EHR ID and retrieve patient information
     # For this example, we'll just move to symptom collection
     vr = VoiceResponse()
-    vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}')
+    vr.redirect(reverse('doctor_department') + f'?call_id={call_id}')
     return HttpResponse(str(vr), content_type='text/xml')
 
 @csrf_exempt
@@ -410,7 +410,7 @@ def gather_symptoms(request: HttpRequest) -> HttpResponse:
     gather.say(question, voice="Polly.Aditi", language="en-IN")
     vr.append(gather)
 
-    vr.redirect(reverse('gather_symptoms') + f'?call_id={call_id}&question_number={question_number}')
+    vr.redirect(reverse('handle_symptoms') + f'?call_id={call_id}&question_number={question_number}')
     return HttpResponse(str(vr), content_type='text/xml')
 
 @require_POST
