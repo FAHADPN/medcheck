@@ -8,6 +8,7 @@ from ehr.models import Patient
 from twilio.twiml.voice_response import VoiceResponse, Gather
 import openai
 from decouple import config
+from ehr.serializers import PatientSerializer
 
 class recordingViewSet(viewsets.ModelViewSet):
     queryset = recording.objects.all()
@@ -111,11 +112,23 @@ def get_patient_id(request):
     """Handles patient ID entry and forwards to the next step."""
     patient_id = request.values.get('Digits', None)
     # Call an API to fetch patient information based on ID.
+
+    try:
+        patient = Patient.objects.get(patient_id=patient_id)
+        patient_serializer = PatientSerializer(patient)
+        patient_info = patient_serializer.data
+    except Patient.DoesNotExist:
+        patient_info = None
     # Example: make API call to '/get_patient_info' with patient_id
     
     response = VoiceResponse()
-    response.say(f"Thank you! We have identified your patient ID as {patient_id}.")
-    response.redirect('/gather-symptoms')
+    if not patient_info:
+        response.say("Sorry, we couldn't find any patient with the provided ID. Please try again.")
+        response.redirect('/identify-user')
+        return str(response)
+    else:
+        response.say(f"Thank you! We have identified your patient ID as {patient_id}.")
+        response.redirect('/gather-symptoms')
 
     return str(response)
 
